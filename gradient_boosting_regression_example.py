@@ -16,39 +16,38 @@
 #
 
 """
-Decision Tree Classification Example.
+Gradient Boosted Trees Regression Example.
 """
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.tree import DecisionTree, DecisionTreeModel
+from pyspark.mllib.tree import GradientBoostedTrees, GradientBoostedTreesModel
 from pyspark.mllib.util import MLUtils
 # $example off$
 
 if __name__ == "__main__":
-
-    sc = SparkContext(appName="PythonDecisionTreeClassificationExample")
-
+    sc = SparkContext(appName="PythonGradientBoostedTreesRegressionExample")
     # $example on$
-    # Load and parse the data file into an RDD of LabeledPoint.
-    data = MLUtils.loadLibSVMFile(sc, 'data/mllib/sample_libsvm_data.txt')
+    # Load and parse the data file.
+    data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
     # Split the data into training and test sets (30% held out for testing)
     (trainingData, testData) = data.randomSplit([0.7, 0.3])
 
-    # Train a DecisionTree model.
-    #  Empty categoricalFeaturesInfo indicates all features are continuous.
-    model = DecisionTree.trainClassifier(trainingData, numClasses=2, categoricalFeaturesInfo={},
-                                         impurity='gini', maxDepth=5, maxBins=32)
+    # Train a GradientBoostedTrees model.
+    #  Notes: (a) Empty categoricalFeaturesInfo indicates all features are continuous.
+    #         (b) Use more iterations in practice.
+    model = GradientBoostedTrees.trainRegressor(trainingData,
+                                                categoricalFeaturesInfo={}, numIterations=3)
 
     # Evaluate model on test instances and compute test error
     predictions = model.predict(testData.map(lambda x: x.features))
     labelsAndPredictions = testData.map(lambda lp: lp.label).zip(predictions)
-    testErr = labelsAndPredictions.filter(
-        lambda lp: lp[0] != lp[1]).count() / float(testData.count())
-    print('Test Error = ' + str(testErr))
-    print('Learned classification tree model:')
+    testMSE = labelsAndPredictions.map(lambda lp: (lp[0] - lp[1]) * (lp[0] - lp[1])).sum() /\
+        float(testData.count())
+    print('Test Mean Squared Error = ' + str(testMSE))
+    print('Learned regression GBT model:')
     print(model.toDebugString())
 
     # Save and load model
-    model.save(sc, "target/tmp/myDecisionTreeClassificationModel")
-    sameModel = DecisionTreeModel.load(sc, "target/tmp/myDecisionTreeClassificationModel")
+    model.save(sc, "target/tmp/myGradientBoostingRegressionModel")
+    sameModel = GradientBoostedTreesModel.load(sc, "target/tmp/myGradientBoostingRegressionModel")
     # $example off$

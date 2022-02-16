@@ -17,33 +17,24 @@
 
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.feature import ElementwiseProduct
-from pyspark.mllib.linalg import Vectors
+import numpy as np
+
+from pyspark.mllib.stat import Statistics
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="SummaryStatisticsExample")  # SparkContext
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    mat = sc.parallelize(
+        [np.array([1.0, 10.0, 100.0]), np.array([2.0, 20.0, 200.0]), np.array([3.0, 30.0, 300.0])]
+    )  # an RDD of Vectors
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
-
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    # Compute column summary statistics.
+    summary = Statistics.colStats(mat)
+    print(summary.mean())  # a dense vector containing the mean value for each column
+    print(summary.variance())  # column-wise variance
+    print(summary.numNonzeros())  # number of nonzeros in each column
     # $example off$
-
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
-        print(each)
 
     sc.stop()

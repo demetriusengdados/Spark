@@ -17,33 +17,30 @@
 
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.feature import ElementwiseProduct
 from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.linalg.distributed import RowMatrix
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="PythonPCAOnRowMatrixExample")
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    rows = sc.parallelize([
+        Vectors.sparse(5, {1: 1.0, 3: 7.0}),
+        Vectors.dense(2.0, 0.0, 3.0, 4.0, 5.0),
+        Vectors.dense(4.0, 0.0, 0.0, 6.0, 7.0)
+    ])
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
+    mat = RowMatrix(rows)
+    # Compute the top 4 principal components.
+    # Principal components are stored in a local dense matrix.
+    pc = mat.computePrincipalComponents(4)
 
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    # Project the rows to the linear space spanned by the top 4 principal components.
+    projected = mat.multiply(pc)
     # $example off$
-
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
-        print(each)
-
+    collected = projected.rows.collect()
+    print("Projected Row Matrix of principal component:")
+    for vector in collected:
+        print(vector)
     sc.stop()

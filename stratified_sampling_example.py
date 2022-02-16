@@ -16,34 +16,21 @@
 #
 
 from pyspark import SparkContext
-# $example on$
-from pyspark.mllib.feature import ElementwiseProduct
-from pyspark.mllib.linalg import Vectors
-# $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="StratifiedSamplingExample")  # SparkContext
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    # an RDD of any key value pairs
+    data = sc.parallelize([(1, 'a'), (1, 'b'), (2, 'c'), (2, 'd'), (2, 'e'), (3, 'f')])
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
+    # specify the exact fraction desired from each key as a dictionary
+    fractions = {1: 0.1, 2: 0.6, 3: 0.3}
 
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    approxSample = data.sampleByKey(False, fractions)
     # $example off$
 
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
+    for each in approxSample.collect():
         print(each)
 
     sc.stop()

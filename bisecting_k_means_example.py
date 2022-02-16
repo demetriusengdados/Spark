@@ -15,45 +15,29 @@
 # limitations under the License.
 #
 
-"""
-An example demonstrating bisecting k-means clustering.
-Run with:
-  bin/spark-submit examples/src/main/python/ml/bisecting_k_means_example.py
-"""
 # $example on$
-from pyspark.ml.clustering import BisectingKMeans
-from pyspark.ml.evaluation import ClusteringEvaluator
+from numpy import array
 # $example off$
-from pyspark.sql import SparkSession
+
+from pyspark import SparkContext
+# $example on$
+from pyspark.mllib.clustering import BisectingKMeans
+# $example off$
 
 if __name__ == "__main__":
-    spark = SparkSession\
-        .builder\
-        .appName("BisectingKMeansExample")\
-        .getOrCreate()
+    sc = SparkContext(appName="PythonBisectingKMeansExample")  # SparkContext
 
     # $example on$
-    # Loads data.
-    dataset = spark.read.format("libsvm").load("data/mllib/sample_kmeans_data.txt")
+    # Load and parse the data
+    data = sc.textFile("data/mllib/kmeans_data.txt")
+    parsedData = data.map(lambda line: array([float(x) for x in line.split(' ')]))
 
-    # Trains a bisecting k-means model.
-    bkm = BisectingKMeans().setK(2).setSeed(1)
-    model = bkm.fit(dataset)
+    # Build the model (cluster the data)
+    model = BisectingKMeans.train(parsedData, 2, maxIterations=5)
 
-    # Make predictions
-    predictions = model.transform(dataset)
-
-    # Evaluate clustering by computing Silhouette score
-    evaluator = ClusteringEvaluator()
-
-    silhouette = evaluator.evaluate(predictions)
-    print("Silhouette with squared euclidean distance = " + str(silhouette))
-
-    # Shows the result.
-    print("Cluster Centers: ")
-    centers = model.clusterCenters()
-    for center in centers:
-        print(center)
+    # Evaluate clustering
+    cost = model.computeCost(parsedData)
+    print("Bisecting K-means Cost = " + str(cost))
     # $example off$
 
-    spark.stop()
+    sc.stop()

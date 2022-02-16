@@ -15,35 +15,36 @@
 # limitations under the License.
 #
 
+from pyspark import SparkContext
 # $example on$
-from pyspark.ml.feature import Normalizer
-from pyspark.ml.linalg import Vectors
+from pyspark.mllib.feature import Normalizer
+from pyspark.mllib.util import MLUtils
 # $example off$
-from pyspark.sql import SparkSession
 
 if __name__ == "__main__":
-    spark = SparkSession\
-        .builder\
-        .appName("NormalizerExample")\
-        .getOrCreate()
+    sc = SparkContext(appName="NormalizerExample")  # SparkContext
 
     # $example on$
-    dataFrame = spark.createDataFrame([
-        (0, Vectors.dense([1.0, 0.5, -1.0]),),
-        (1, Vectors.dense([2.0, 1.0, 1.0]),),
-        (2, Vectors.dense([4.0, 10.0, 2.0]),)
-    ], ["id", "features"])
+    data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
+    labels = data.map(lambda x: x.label)
+    features = data.map(lambda x: x.features)
 
-    # Normalize each Vector using $L^1$ norm.
-    normalizer = Normalizer(inputCol="features", outputCol="normFeatures", p=1.0)
-    l1NormData = normalizer.transform(dataFrame)
-    print("Normalized using L^1 norm")
-    l1NormData.show()
+    normalizer1 = Normalizer()
+    normalizer2 = Normalizer(p=float("inf"))
 
-    # Normalize each Vector using $L^\infty$ norm.
-    lInfNormData = normalizer.transform(dataFrame, {normalizer.p: float("inf")})
-    print("Normalized using L^inf norm")
-    lInfNormData.show()
+    # Each sample in data1 will be normalized using $L^2$ norm.
+    data1 = labels.zip(normalizer1.transform(features))
+
+    # Each sample in data2 will be normalized using $L^\infty$ norm.
+    data2 = labels.zip(normalizer2.transform(features))
     # $example off$
 
-    spark.stop()
+    print("data1:")
+    for each in data1.collect():
+        print(each)
+
+    print("data2:")
+    for each in data2.collect():
+        print(each)
+
+    sc.stop()

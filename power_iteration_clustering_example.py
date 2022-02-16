@@ -15,35 +15,28 @@
 # limitations under the License.
 #
 
-"""
-An example demonstrating PowerIterationClustering.
-Run with:
-  bin/spark-submit examples/src/main/python/ml/power_iteration_clustering_example.py
-"""
+from pyspark import SparkContext
 # $example on$
-from pyspark.ml.clustering import PowerIterationClustering
+from pyspark.mllib.clustering import PowerIterationClustering, PowerIterationClusteringModel
 # $example off$
-from pyspark.sql import SparkSession
 
 if __name__ == "__main__":
-    spark = SparkSession\
-        .builder\
-        .appName("PowerIterationClusteringExample")\
-        .getOrCreate()
+    sc = SparkContext(appName="PowerIterationClusteringExample")  # SparkContext
 
     # $example on$
-    df = spark.createDataFrame([
-        (0, 1, 1.0),
-        (0, 2, 1.0),
-        (1, 2, 1.0),
-        (3, 4, 1.0),
-        (4, 0, 0.1)
-    ], ["src", "dst", "weight"])
+    # Load and parse the data
+    data = sc.textFile("data/mllib/pic_data.txt")
+    similarities = data.map(lambda line: tuple([float(x) for x in line.split(' ')]))
 
-    pic = PowerIterationClustering(k=2, maxIter=20, initMode="degree", weightCol="weight")
+    # Cluster the data into two classes using PowerIterationClustering
+    model = PowerIterationClustering.train(similarities, 2, 10)
 
-    # Shows the cluster assignment
-    pic.assignClusters(df).show()
+    model.assignments().foreach(lambda x: print(str(x.id) + " -> " + str(x.cluster)))
+
+    # Save and load model
+    model.save(sc, "target/org/apache/spark/PythonPowerIterationClusteringExample/PICModel")
+    sameModel = PowerIterationClusteringModel\
+        .load(sc, "target/org/apache/spark/PythonPowerIterationClusteringExample/PICModel")
     # $example off$
 
-    spark.stop()
+    sc.stop()

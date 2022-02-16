@@ -17,33 +17,22 @@
 
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.feature import ElementwiseProduct
-from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.stat import Statistics
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="HypothesisTestingKolmogorovSmirnovTestExample")
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    parallelData = sc.parallelize([0.1, 0.15, 0.2, 0.3, 0.25])
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
-
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    # run a KS test for the sample versus a standard normal distribution
+    testResult = Statistics.kolmogorovSmirnovTest(parallelData, "norm", 0, 1)
+    # summary of the test including the p-value, test statistic, and null hypothesis
+    # if our p-value indicates significance, we can reject the null hypothesis
+    # Note that the Scala functionality of calling Statistics.kolmogorovSmirnovTest with
+    # a lambda to calculate the CDF is not made available in the Python API
+    print(testResult)
     # $example off$
-
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
-        print(each)
 
     sc.stop()

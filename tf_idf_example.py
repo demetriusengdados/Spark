@@ -15,36 +15,41 @@
 # limitations under the License.
 #
 
+from pyspark import SparkContext
 # $example on$
-from pyspark.ml.feature import HashingTF, IDF, Tokenizer
+from pyspark.mllib.feature import HashingTF, IDF
 # $example off$
-from pyspark.sql import SparkSession
 
 if __name__ == "__main__":
-    spark = SparkSession\
-        .builder\
-        .appName("TfIdfExample")\
-        .getOrCreate()
+    sc = SparkContext(appName="TFIDFExample")  # SparkContext
 
     # $example on$
-    sentenceData = spark.createDataFrame([
-        (0.0, "Hi I heard about Spark"),
-        (0.0, "I wish Java could use case classes"),
-        (1.0, "Logistic regression models are neat")
-    ], ["label", "sentence"])
+    # Load documents (one per line).
+    documents = sc.textFile("data/mllib/kmeans_data.txt").map(lambda line: line.split(" "))
 
-    tokenizer = Tokenizer(inputCol="sentence", outputCol="words")
-    wordsData = tokenizer.transform(sentenceData)
+    hashingTF = HashingTF()
+    tf = hashingTF.transform(documents)
 
-    hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=20)
-    featurizedData = hashingTF.transform(wordsData)
-    # alternatively, CountVectorizer can also be used to get term frequency vectors
+    # While applying HashingTF only needs a single pass to the data, applying IDF needs two passes:
+    # First to compute the IDF vector and second to scale the term frequencies by IDF.
+    tf.cache()
+    idf = IDF().fit(tf)
+    tfidf = idf.transform(tf)
 
-    idf = IDF(inputCol="rawFeatures", outputCol="features")
-    idfModel = idf.fit(featurizedData)
-    rescaledData = idfModel.transform(featurizedData)
-
-    rescaledData.select("label", "features").show()
+    # spark.mllib's IDF implementation provides an option for ignoring terms
+    # which occur in less than a minimum number of documents.
+    # In such cases, the IDF for these terms is set to 0.
+    # This feature can be used by passing the minDocFreq value to the IDF constructor.
+    idfIgnore = IDF(minDocFreq=2).fit(tf)
+    tfidfIgnore = idfIgnore.transform(tf)
     # $example off$
 
-    spark.stop()
+    print("tfidf:")
+    for each in tfidf.collect():
+        print(each)
+
+    print("tfidfIgnore:")
+    for each in tfidfIgnore.collect():
+        print(each)
+
+    sc.stop()

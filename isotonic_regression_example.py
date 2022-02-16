@@ -17,33 +17,43 @@
 
 """
 Isotonic Regression Example.
-
-Run with:
-  bin/spark-submit examples/src/main/python/ml/isotonic_regression_example.py
 """
+from pyspark import SparkContext
 # $example on$
-from pyspark.ml.regression import IsotonicRegression
+import math
+from pyspark.mllib.regression import IsotonicRegression, IsotonicRegressionModel
+from pyspark.mllib.util import MLUtils
 # $example off$
-from pyspark.sql import SparkSession
 
 if __name__ == "__main__":
-    spark = SparkSession\
-        .builder\
-        .appName("IsotonicRegressionExample")\
-        .getOrCreate()
+
+    sc = SparkContext(appName="PythonIsotonicRegressionExample")
 
     # $example on$
-    # Loads data.
-    dataset = spark.read.format("libsvm")\
-        .load("data/mllib/sample_isotonic_regression_libsvm_data.txt")
+    # Load and parse the data
+    def parsePoint(labeledData):
+        return (labeledData.label, labeledData.features[0], 1.0)
 
-    # Trains an isotonic regression model.
-    model = IsotonicRegression().fit(dataset)
-    print("Boundaries in increasing order: %s\n" % str(model.boundaries))
-    print("Predictions associated with the boundaries: %s\n" % str(model.predictions))
+    data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_isotonic_regression_libsvm_data.txt")
 
-    # Makes predictions.
-    model.transform(dataset).show()
+    # Create label, feature, weight tuples from input data with weight set to default value 1.0.
+    parsedData = data.map(parsePoint)
+
+    # Split data into training (60%) and test (40%) sets.
+    training, test = parsedData.randomSplit([0.6, 0.4], 11)
+
+    # Create isotonic regression model from training data.
+    # Isotonic parameter defaults to true so it is only shown for demonstration
+    model = IsotonicRegression.train(training)
+
+    # Create tuples of predicted and real labels.
+    predictionAndLabel = test.map(lambda p: (model.predict(p[1]), p[0]))
+
+    # Calculate mean squared error between predicted and real labels.
+    meanSquaredError = predictionAndLabel.map(lambda pl: math.pow((pl[0] - pl[1]), 2)).mean()
+    print("Mean Squared Error = " + str(meanSquaredError))
+
+    # Save and load model
+    model.save(sc, "target/tmp/myIsotonicRegressionModel")
+    sameModel = IsotonicRegressionModel.load(sc, "target/tmp/myIsotonicRegressionModel")
     # $example off$
-
-    spark.stop()

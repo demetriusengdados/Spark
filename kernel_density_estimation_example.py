@@ -17,33 +17,26 @@
 
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.feature import ElementwiseProduct
-from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.stat import KernelDensity
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="KernelDensityEstimationExample")  # SparkContext
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    # an RDD of sample data
+    data = sc.parallelize([1.0, 1.0, 1.0, 2.0, 3.0, 4.0, 5.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.0])
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
+    # Construct the density estimator with the sample data and a standard deviation for the Gaussian
+    # kernels
+    kd = KernelDensity()
+    kd.setSample(data)
+    kd.setBandwidth(3.0)
 
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    # Find density estimates for the given values
+    densities = kd.estimate([-1.0, 2.0, 5.0])
     # $example off$
 
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
-        print(each)
+    print(densities)
 
     sc.stop()

@@ -17,33 +17,32 @@
 
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.feature import ElementwiseProduct
 from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.linalg.distributed import RowMatrix
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="ElementwiseProductExample")  # SparkContext
+    sc = SparkContext(appName="PythonSVDExample")
 
     # $example on$
-    data = sc.textFile("data/mllib/kmeans_data.txt")
-    parsedData = data.map(lambda x: [float(t) for t in x.split(" ")])
+    rows = sc.parallelize([
+        Vectors.sparse(5, {1: 1.0, 3: 7.0}),
+        Vectors.dense(2.0, 0.0, 3.0, 4.0, 5.0),
+        Vectors.dense(4.0, 0.0, 0.0, 6.0, 7.0)
+    ])
 
-    # Create weight vector.
-    transformingVector = Vectors.dense([0.0, 1.0, 2.0])
-    transformer = ElementwiseProduct(transformingVector)
+    mat = RowMatrix(rows)
 
-    # Batch transform
-    transformedData = transformer.transform(parsedData)
-    # Single-row transform
-    transformedData2 = transformer.transform(parsedData.first())
+    # Compute the top 5 singular values and corresponding singular vectors.
+    svd = mat.computeSVD(5, computeU=True)
+    U = svd.U       # The U factor is a RowMatrix.
+    s = svd.s       # The singular values are stored in a local dense vector.
+    V = svd.V       # The V factor is a local dense matrix.
     # $example off$
-
-    print("transformedData:")
-    for each in transformedData.collect():
-        print(each)
-
-    print("transformedData2:")
-    for each in transformedData2:
-        print(each)
-
+    collected = U.rows.collect()
+    print("U factor is:")
+    for vector in collected:
+        print(vector)
+    print("Singular values are: %s" % s)
+    print("V factor is:\n%s" % V)
     sc.stop()

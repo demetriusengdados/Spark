@@ -15,35 +15,33 @@
 # limitations under the License.
 #
 
-# $example on$
-from numpy import array
-# $example off$
-
 from pyspark import SparkContext
 # $example on$
-from pyspark.mllib.clustering import GaussianMixture, GaussianMixtureModel
+from pyspark.mllib.classification import SVMWithSGD, SVMModel
+from pyspark.mllib.regression import LabeledPoint
 # $example off$
 
 if __name__ == "__main__":
-    sc = SparkContext(appName="GaussianMixtureExample")  # SparkContext
+    sc = SparkContext(appName="PythonSVMWithSGDExample")
 
     # $example on$
     # Load and parse the data
-    data = sc.textFile("data/mllib/gmm_data.txt")
-    parsedData = data.map(lambda line: array([float(x) for x in line.strip().split(' ')]))
+    def parsePoint(line):
+        values = [float(x) for x in line.split(' ')]
+        return LabeledPoint(values[0], values[1:])
 
-    # Build the model (cluster the data)
-    gmm = GaussianMixture.train(parsedData, 2)
+    data = sc.textFile("data/mllib/sample_svm_data.txt")
+    parsedData = data.map(parsePoint)
+
+    # Build the model
+    model = SVMWithSGD.train(parsedData, iterations=100)
+
+    # Evaluating the model on training data
+    labelsAndPreds = parsedData.map(lambda p: (p.label, model.predict(p.features)))
+    trainErr = labelsAndPreds.filter(lambda lp: lp[0] != lp[1]).count() / float(parsedData.count())
+    print("Training Error = " + str(trainErr))
 
     # Save and load model
-    gmm.save(sc, "target/org/apache/spark/PythonGaussianMixtureExample/GaussianMixtureModel")
-    sameModel = GaussianMixtureModel\
-        .load(sc, "target/org/apache/spark/PythonGaussianMixtureExample/GaussianMixtureModel")
-
-    # output parameters of model
-    for i in range(2):
-        print("weight = ", gmm.weights[i], "mu = ", gmm.gaussians[i].mu,
-              "sigma = ", gmm.gaussians[i].sigma.toArray())
+    model.save(sc, "target/tmp/pythonSVMWithSGDModel")
+    sameModel = SVMModel.load(sc, "target/tmp/pythonSVMWithSGDModel")
     # $example off$
-
-    sc.stop()
