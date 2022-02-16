@@ -20,38 +20,35 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.stat.Statistics
+import org.apache.spark.rdd.RDD
 // $example off$
 
-object GaussianMixtureExample {
+object HypothesisTestingKolmogorovSmirnovTestExample {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("HypothesisTestingKolmogorovSmirnovTestExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    val data: RDD[Double] = sc.parallelize(Seq(0.1, 0.15, 0.2, 0.3, 0.25))  // an RDD of sample data
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
+    // run a KS test for the sample versus a standard normal distribution
+    val testResult = Statistics.kolmogorovSmirnovTest(data, "norm", 0, 1)
+    // summary of the test including the p-value, test statistic, and null hypothesis if our p-value
+    // indicates significance, we can reject the null hypothesis.
+    println(testResult)
+    println()
 
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
-    }
+    // perform a KS test using a cumulative distribution function of our making
+    val myCDF = Map(0.1 -> 0.2, 0.15 -> 0.6, 0.2 -> 0.05, 0.3 -> 0.05, 0.25 -> 0.1)
+    val testResult2 = Statistics.kolmogorovSmirnovTest(data, myCDF)
+    println(testResult2)
     // $example off$
 
     sc.stop()
   }
 }
 // scalastyle:on println
+

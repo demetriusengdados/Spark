@@ -19,37 +19,33 @@
 package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
-// $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
-import org.apache.spark.mllib.linalg.Vectors
-// $example off$
 
-object GaussianMixtureExample {
+object StratifiedSamplingExample {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("StratifiedSamplingExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    // an RDD[(K, V)] of any key value pairs
+    val data = sc.parallelize(
+      Seq((1, 'a'), (1, 'b'), (2, 'c'), (2, 'd'), (2, 'e'), (3, 'f')))
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
+    // specify the exact fraction desired from each key
+    val fractions = Map(1 -> 0.1, 2 -> 0.6, 3 -> 0.3)
 
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
-    }
+    // Get an approximate sample from each stratum
+    val approxSample = data.sampleByKey(withReplacement = false, fractions = fractions)
+    // Get an exact sample from each stratum
+    val exactSample = data.sampleByKeyExact(withReplacement = false, fractions = fractions)
     // $example off$
+
+    println(s"approxSample size is ${approxSample.collect().size}")
+    approxSample.collect().foreach(println)
+
+    println(s"exactSample its size is ${exactSample.collect().size}")
+    exactSample.collect().foreach(println)
 
     sc.stop()
   }

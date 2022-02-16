@@ -15,57 +15,46 @@
  * limitations under the License.
  */
 
-package org.apache.spark.examples.ml
+package org.apache.spark.examples.mllib
 
 // scalastyle:off println
-
+import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.ml.clustering.BisectingKMeans
-import org.apache.spark.ml.evaluation.ClusteringEvaluator
+import org.apache.spark.mllib.clustering.BisectingKMeans
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 // $example off$
-import org.apache.spark.sql.SparkSession
 
 /**
- * An example demonstrating bisecting k-means clustering.
+ * An example demonstrating a bisecting k-means clustering in spark.mllib.
+ *
  * Run with
  * {{{
- * bin/run-example ml.BisectingKMeansExample
+ * bin/run-example mllib.BisectingKMeansExample
  * }}}
  */
 object BisectingKMeansExample {
 
   def main(args: Array[String]): Unit = {
-    // Creates a SparkSession
-    val spark = SparkSession
-      .builder
-      .appName("BisectingKMeansExample")
-      .getOrCreate()
+    val sparkConf = new SparkConf().setAppName("mllib.BisectingKMeansExample")
+    val sc = new SparkContext(sparkConf)
 
     // $example on$
-    // Loads data.
-    val dataset = spark.read.format("libsvm").load("data/mllib/sample_kmeans_data.txt")
+    // Loads and parses data
+    def parse(line: String): Vector = Vectors.dense(line.split(" ").map(_.toDouble))
+    val data = sc.textFile("data/mllib/kmeans_data.txt").map(parse).cache()
 
-    // Trains a bisecting k-means model.
-    val bkm = new BisectingKMeans().setK(2).setSeed(1)
-    val model = bkm.fit(dataset)
+    // Clustering the data into 6 clusters by BisectingKMeans.
+    val bkm = new BisectingKMeans().setK(6)
+    val model = bkm.run(data)
 
-    // Make predictions
-    val predictions = model.transform(dataset)
-
-    // Evaluate clustering by computing Silhouette score
-    val evaluator = new ClusteringEvaluator()
-
-    val silhouette = evaluator.evaluate(predictions)
-    println(s"Silhouette with squared euclidean distance = $silhouette")
-
-    // Shows the result.
-    println("Cluster Centers: ")
-    val centers = model.clusterCenters
-    centers.foreach(println)
+    // Show the compute cost and the cluster centers
+    println(s"Compute Cost: ${model.computeCost(data)}")
+    model.clusterCenters.zipWithIndex.foreach { case (center, idx) =>
+      println(s"Cluster Center ${idx}: ${center}")
+    }
     // $example off$
 
-    spark.stop()
+    sc.stop()
   }
 }
 // scalastyle:on println
-

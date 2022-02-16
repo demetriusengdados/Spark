@@ -15,45 +15,39 @@
  * limitations under the License.
  */
 
-package org.apache.spark.examples.ml
+// scalastyle:off println
+package org.apache.spark.examples.mllib
 
+import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.ml.fpm.PrefixSpan
+import org.apache.spark.mllib.fpm.PrefixSpan
 // $example off$
-import org.apache.spark.sql.SparkSession
 
-/**
- * An example demonstrating PrefixSpan.
- * Run with
- * {{{
- * bin/run-example ml.PrefixSpanExample
- * }}}
- */
 object PrefixSpanExample {
 
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession
-      .builder
-      .appName(s"${this.getClass.getSimpleName}")
-      .getOrCreate()
-    import spark.implicits._
+    val conf = new SparkConf().setAppName("PrefixSpanExample")
+    val sc = new SparkContext(conf)
 
     // $example on$
-    val smallTestData = Seq(
-      Seq(Seq(1, 2), Seq(3)),
-      Seq(Seq(1), Seq(3, 2), Seq(1, 2)),
-      Seq(Seq(1, 2), Seq(5)),
-      Seq(Seq(6)))
-
-    val df = smallTestData.toDF("sequence")
-    val result = new PrefixSpan()
+    val sequences = sc.parallelize(Seq(
+      Array(Array(1, 2), Array(3)),
+      Array(Array(1), Array(3, 2), Array(1, 2)),
+      Array(Array(1, 2), Array(5)),
+      Array(Array(6))
+    ), 2).cache()
+    val prefixSpan = new PrefixSpan()
       .setMinSupport(0.5)
       .setMaxPatternLength(5)
-      .setMaxLocalProjDBSize(32000000)
-      .findFrequentSequentialPatterns(df)
-      .show()
+    val model = prefixSpan.run(sequences)
+    model.freqSequences.collect().foreach { freqSequence =>
+      println(
+        s"${freqSequence.sequence.map(_.mkString("[", ", ", "]")).mkString("[", ", ", "]")}," +
+          s" ${freqSequence.freq}")
+    }
     // $example off$
 
-    spark.stop()
+    sc.stop()
   }
 }
+// scalastyle:off println

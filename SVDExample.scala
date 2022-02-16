@@ -21,38 +21,44 @@ package org.apache.spark.examples.mllib
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 // $example on$
-import org.apache.spark.mllib.feature.{StandardScaler, StandardScalerModel}
+import org.apache.spark.mllib.linalg.Matrix
+import org.apache.spark.mllib.linalg.SingularValueDecomposition
+import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
 // $example off$
 
-object StandardScalerExample {
+/**
+ * Example for SingularValueDecomposition.
+ */
+object SVDExample {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf().setAppName("StandardScalerExample")
+    val conf = new SparkConf().setAppName("SVDExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    val data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
+    val data = Array(
+      Vectors.sparse(5, Seq((1, 1.0), (3, 7.0))),
+      Vectors.dense(2.0, 0.0, 3.0, 4.0, 5.0),
+      Vectors.dense(4.0, 0.0, 0.0, 6.0, 7.0))
 
-    val scaler1 = new StandardScaler().fit(data.map(x => x.features))
-    val scaler2 = new StandardScaler(withMean = true, withStd = true).fit(data.map(x => x.features))
-    // scaler3 is an identical model to scaler2, and will produce identical transformations
-    val scaler3 = new StandardScalerModel(scaler2.std, scaler2.mean)
+    val rows = sc.parallelize(data)
 
-    // data1 will be unit variance.
-    val data1 = data.map(x => (x.label, scaler1.transform(x.features)))
+    val mat: RowMatrix = new RowMatrix(rows)
 
-    // data2 will be unit variance and zero mean.
-    val data2 = data.map(x => (x.label, scaler2.transform(Vectors.dense(x.features.toArray))))
+    // Compute the top 5 singular values and corresponding singular vectors.
+    val svd: SingularValueDecomposition[RowMatrix, Matrix] = mat.computeSVD(5, computeU = true)
+    val U: RowMatrix = svd.U  // The U factor is a RowMatrix.
+    val s: Vector = svd.s     // The singular values are stored in a local dense vector.
+    val V: Matrix = svd.V     // The V factor is a local dense matrix.
     // $example off$
-
-    println("data1: ")
-    data1.collect.foreach(x => println(x))
-
-    println("data2: ")
-    data2.collect.foreach(x => println(x))
+    val collect = U.rows.collect()
+    println("U factor is:")
+    collect.foreach { vector => println(vector) }
+    println(s"Singular values are: $s")
+    println(s"V factor is:\n$V")
 
     sc.stop()
   }

@@ -15,54 +15,42 @@
  * limitations under the License.
  */
 
-package org.apache.spark.examples.ml
-
 // scalastyle:off println
+package org.apache.spark.examples.mllib
 
+import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.ml.clustering.KMeans
-import org.apache.spark.ml.evaluation.ClusteringEvaluator
+import org.apache.spark.mllib.clustering.{KMeans, KMeansModel}
+import org.apache.spark.mllib.linalg.Vectors
 // $example off$
-import org.apache.spark.sql.SparkSession
 
-/**
- * An example demonstrating k-means clustering.
- * Run with
- * {{{
- * bin/run-example ml.KMeansExample
- * }}}
- */
 object KMeansExample {
 
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession
-      .builder
-      .appName(s"${this.getClass.getSimpleName}")
-      .getOrCreate()
+
+    val conf = new SparkConf().setAppName("KMeansExample")
+    val sc = new SparkContext(conf)
 
     // $example on$
-    // Loads data.
-    val dataset = spark.read.format("libsvm").load("data/mllib/sample_kmeans_data.txt")
+    // Load and parse the data
+    val data = sc.textFile("data/mllib/kmeans_data.txt")
+    val parsedData = data.map(s => Vectors.dense(s.split(' ').map(_.toDouble))).cache()
 
-    // Trains a k-means model.
-    val kmeans = new KMeans().setK(2).setSeed(1L)
-    val model = kmeans.fit(dataset)
+    // Cluster the data into two classes using KMeans
+    val numClusters = 2
+    val numIterations = 20
+    val clusters = KMeans.train(parsedData, numClusters, numIterations)
 
-    // Make predictions
-    val predictions = model.transform(dataset)
+    // Evaluate clustering by computing Within Set Sum of Squared Errors
+    val WSSSE = clusters.computeCost(parsedData)
+    println(s"Within Set Sum of Squared Errors = $WSSSE")
 
-    // Evaluate clustering by computing Silhouette score
-    val evaluator = new ClusteringEvaluator()
-
-    val silhouette = evaluator.evaluate(predictions)
-    println(s"Silhouette with squared euclidean distance = $silhouette")
-
-    // Shows the result.
-    println("Cluster Centers: ")
-    model.clusterCenters.foreach(println)
+    // Save and load model
+    clusters.save(sc, "target/org/apache/spark/KMeansExample/KMeansModel")
+    val sameModel = KMeansModel.load(sc, "target/org/apache/spark/KMeansExample/KMeansModel")
     // $example off$
 
-    spark.stop()
+    sc.stop()
   }
 }
 // scalastyle:on println

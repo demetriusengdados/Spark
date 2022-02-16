@@ -16,44 +16,46 @@
  */
 
 // scalastyle:off println
-package org.apache.spark.examples.ml
+package org.apache.spark.examples.mllib
 
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
 // $example on$
-import org.apache.spark.ml.feature.ChiSqSelector
-import org.apache.spark.ml.linalg.Vectors
+import org.apache.spark.mllib.feature.ChiSqSelector
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.util.MLUtils
 // $example off$
-import org.apache.spark.sql.SparkSession
 
 object ChiSqSelectorExample {
+
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession
-      .builder
-      .appName("ChiSqSelectorExample")
-      .getOrCreate()
-    import spark.implicits._
+
+    val conf = new SparkConf().setAppName("ChiSqSelectorExample")
+    val sc = new SparkContext(conf)
 
     // $example on$
-    val data = Seq(
-      (7, Vectors.dense(0.0, 0.0, 18.0, 1.0), 1.0),
-      (8, Vectors.dense(0.0, 1.0, 12.0, 0.0), 0.0),
-      (9, Vectors.dense(1.0, 0.0, 15.0, 0.1), 0.0)
-    )
-
-    val df = spark.createDataset(data).toDF("id", "features", "clicked")
-
-    val selector = new ChiSqSelector()
-      .setNumTopFeatures(1)
-      .setFeaturesCol("features")
-      .setLabelCol("clicked")
-      .setOutputCol("selectedFeatures")
-
-    val result = selector.fit(df).transform(df)
-
-    println(s"ChiSqSelector output with top ${selector.getNumTopFeatures} features selected")
-    result.show()
+    // Load some data in libsvm format
+    val data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
+    // Discretize data in 16 equal bins since ChiSqSelector requires categorical features
+    // Even though features are doubles, the ChiSqSelector treats each unique value as a category
+    val discretizedData = data.map { lp =>
+      LabeledPoint(lp.label, Vectors.dense(lp.features.toArray.map { x => (x / 16).floor }))
+    }
+    // Create ChiSqSelector that will select top 50 of 692 features
+    val selector = new ChiSqSelector(50)
+    // Create ChiSqSelector model (selecting features)
+    val transformer = selector.fit(discretizedData)
+    // Filter the top 50 features from each feature vector
+    val filteredData = discretizedData.map { lp =>
+      LabeledPoint(lp.label, transformer.transform(lp.features))
+    }
     // $example off$
 
-    spark.stop()
+    println("filtered data: ")
+    filteredData.collect.foreach(x => println(x))
+
+    sc.stop()
   }
 }
 // scalastyle:on println

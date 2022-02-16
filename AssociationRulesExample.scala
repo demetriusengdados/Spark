@@ -20,38 +20,36 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.fpm.AssociationRules
+import org.apache.spark.mllib.fpm.FPGrowth.FreqItemset
 // $example off$
 
-object GaussianMixtureExample {
+object AssociationRulesExample {
 
   def main(args: Array[String]): Unit = {
-
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("AssociationRulesExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    val freqItemsets = sc.parallelize(Seq(
+      new FreqItemset(Array("a"), 15L),
+      new FreqItemset(Array("b"), 35L),
+      new FreqItemset(Array("a", "b"), 12L)
+    ))
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
+    val ar = new AssociationRules()
+      .setMinConfidence(0.8)
+    val results = ar.run(freqItemsets)
 
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
+    results.collect().foreach { rule =>
+    println(s"[${rule.antecedent.mkString(",")}=>${rule.consequent.mkString(",")} ]" +
+        s" ${rule.confidence}")
     }
     // $example off$
 
     sc.stop()
   }
+
 }
 // scalastyle:on println
+

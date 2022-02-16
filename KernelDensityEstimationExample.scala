@@ -20,38 +20,35 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.stat.KernelDensity
+import org.apache.spark.rdd.RDD
 // $example off$
 
-object GaussianMixtureExample {
+object KernelDensityEstimationExample {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("KernelDensityEstimationExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    // an RDD of sample data
+    val data: RDD[Double] = sc.parallelize(Seq(1, 1, 1, 2, 3, 4, 5, 5, 6, 7, 8, 9, 9))
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
+    // Construct the density estimator with the sample data and a standard deviation
+    // for the Gaussian kernels
+    val kd = new KernelDensity()
+      .setSample(data)
+      .setBandwidth(3.0)
 
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
-    }
+    // Find density estimates for the given values
+    val densities = kd.estimate(Array(-1.0, 2.0, 5.0))
     // $example off$
+
+    densities.foreach(println)
 
     sc.stop()
   }
 }
 // scalastyle:on println
+

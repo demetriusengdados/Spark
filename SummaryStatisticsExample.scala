@@ -20,35 +20,31 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
 import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.stat.{MultivariateStatisticalSummary, Statistics}
 // $example off$
 
-object GaussianMixtureExample {
+object SummaryStatisticsExample {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("SummaryStatisticsExample")
     val sc = new SparkContext(conf)
 
     // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    val observations = sc.parallelize(
+      Seq(
+        Vectors.dense(1.0, 10.0, 100.0),
+        Vectors.dense(2.0, 20.0, 200.0),
+        Vectors.dense(3.0, 30.0, 300.0)
+      )
+    )
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
-
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
-    }
+    // Compute column summary statistics.
+    val summary: MultivariateStatisticalSummary = Statistics.colStats(observations)
+    println(summary.mean)  // a dense vector containing the mean value for each column
+    println(summary.variance)  // column-wise variance
+    println(summary.numNonzeros)  // number of nonzeros in each column
     // $example off$
 
     sc.stop()

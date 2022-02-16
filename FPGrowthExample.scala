@@ -15,50 +15,69 @@
  * limitations under the License.
  */
 
-package org.apache.spark.examples.ml
+// scalastyle:off println
+package org.apache.spark.examples.mllib
 
-// $example on$
-import org.apache.spark.ml.fpm.FPGrowth
-// $example off$
-import org.apache.spark.sql.SparkSession
+import scopt.OptionParser
+
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.mllib.fpm.FPGrowth
 
 /**
- * An example demonstrating FP-Growth.
- * Run with
- * {{{
- * bin/run-example ml.FPGrowthExample
- * }}}
+ * Example for mining frequent itemsets using FP-growth.
+ * Example usage: ./bin/run-example mllib.FPGrowthExample \
+ *   --minSupport 0.8 --numPartition 2 ./data/mllib/sample_fpgrowth.txt
  */
 object FPGrowthExample {
 
+  case class Params(
+    input: String = null,
+    minSupport: Double = 0.3,
+    numPartition: Int = -1) extends AbstractParams[Params]
+
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession
-      .builder
-      .appName(s"${this.getClass.getSimpleName}")
-      .getOrCreate()
-    import spark.implicits._
+    val defaultParams = Params()
 
-    // $example on$
-    val dataset = spark.createDataset(Seq(
-      "1 2 5",
-      "1 2 3 5",
-      "1 2")
-    ).map(t => t.split(" ")).toDF("items")
+    val parser = new OptionParser[Params]("FPGrowthExample") {
+      head("FPGrowth: an example FP-growth app.")
+      opt[Double]("minSupport")
+        .text(s"minimal support level, default: ${defaultParams.minSupport}")
+        .action((x, c) => c.copy(minSupport = x))
+      opt[Int]("numPartition")
+        .text(s"number of partition, default: ${defaultParams.numPartition}")
+        .action((x, c) => c.copy(numPartition = x))
+      arg[String]("<input>")
+        .text("input paths to input data set, whose file format is that each line " +
+          "contains a transaction with each item in String and separated by a space")
+        .required()
+        .action((x, c) => c.copy(input = x))
+    }
 
-    val fpgrowth = new FPGrowth().setItemsCol("items").setMinSupport(0.5).setMinConfidence(0.6)
-    val model = fpgrowth.fit(dataset)
+    parser.parse(args, defaultParams) match {
+      case Some(params) => run(params)
+      case _ => sys.exit(1)
+    }
+  }
 
-    // Display frequent itemsets.
-    model.freqItemsets.show()
+  def run(params: Params): Unit = {
+    val conf = new SparkConf().setAppName(s"FPGrowthExample with $params")
+    val sc = new SparkContext(conf)
+    val transactions = sc.textFile(params.input).map(_.split(" ")).cache()
 
-    // Display generated association rules.
-    model.associationRules.show()
+    println(s"Number of transactions: ${transactions.count()}")
 
-    // transform examines the input items against all the association rules and summarize the
-    // consequents as prediction
-    model.transform(dataset).show()
-    // $example off$
+    val model = new FPGrowth()
+      .setMinSupport(params.minSupport)
+      .setNumPartitions(params.numPartition)
+      .run(transactions)
 
-    spark.stop()
+    println(s"Number of frequent itemsets: ${model.freqItemsets.count()}")
+
+    model.freqItemsets.collect().foreach { itemset =>
+      println(s"${itemset.items.mkString("[", ",", "]")}, ${itemset.freq}")
+    }
+
+    sc.stop()
   }
 }
+// scalastyle:on println

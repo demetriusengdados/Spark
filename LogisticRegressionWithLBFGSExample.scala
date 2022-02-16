@@ -20,34 +20,50 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.classification.{NaiveBayes, NaiveBayesModel}
+import org.apache.spark.mllib.classification.{LogisticRegressionModel, LogisticRegressionWithLBFGS}
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
+import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 // $example off$
 
-object NaiveBayesExample {
+object LogisticRegressionWithLBFGSExample {
 
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("NaiveBayesExample")
+    val conf = new SparkConf().setAppName("LogisticRegressionWithLBFGSExample")
     val sc = new SparkContext(conf)
+
     // $example on$
-    // Load and parse the data file.
+    // Load training data in LIBSVM format.
     val data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
 
     // Split data into training (60%) and test (40%).
-    val Array(training, test) = data.randomSplit(Array(0.6, 0.4))
+    val splits = data.randomSplit(Array(0.6, 0.4), seed = 11L)
+    val training = splits(0).cache()
+    val test = splits(1)
 
-    val model = NaiveBayes.train(training, lambda = 1.0, modelType = "multinomial")
+    // Run training algorithm to build the model
+    val model = new LogisticRegressionWithLBFGS()
+      .setNumClasses(10)
+      .run(training)
 
-    val predictionAndLabel = test.map(p => (model.predict(p.features), p.label))
-    val accuracy = 1.0 * predictionAndLabel.filter(x => x._1 == x._2).count() / test.count()
+    // Compute raw scores on the test set.
+    val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+      val prediction = model.predict(features)
+      (prediction, label)
+    }
+
+    // Get evaluation metrics.
+    val metrics = new MulticlassMetrics(predictionAndLabels)
+    val accuracy = metrics.accuracy
+    println(s"Accuracy = $accuracy")
 
     // Save and load model
-    model.save(sc, "target/tmp/myNaiveBayesModel")
-    val sameModel = NaiveBayesModel.load(sc, "target/tmp/myNaiveBayesModel")
+    model.save(sc, "target/tmp/scalaLogisticRegressionWithLBFGSModel")
+    val sameModel = LogisticRegressionModel.load(sc,
+      "target/tmp/scalaLogisticRegressionWithLBFGSModel")
     // $example off$
 
     sc.stop()
   }
 }
-
 // scalastyle:on println

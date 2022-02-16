@@ -20,35 +20,37 @@ package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
+import org.apache.spark.mllib.clustering.KMeans
 import org.apache.spark.mllib.linalg.Vectors
 // $example off$
 
-object GaussianMixtureExample {
+object PMMLModelExportExample {
 
   def main(args: Array[String]): Unit = {
-
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("PMMLModelExportExample")
     val sc = new SparkContext(conf)
 
     // $example on$
     // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
+    val data = sc.textFile("data/mllib/kmeans_data.txt")
+    val parsedData = data.map(s => Vectors.dense(s.split(' ').map(_.toDouble))).cache()
 
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
+    // Cluster the data into two classes using KMeans
+    val numClusters = 2
+    val numIterations = 20
+    val clusters = KMeans.train(parsedData, numClusters, numIterations)
 
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
+    // Export to PMML to a String in PMML format
+    println(s"PMML Model:\n ${clusters.toPMML}")
 
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
-    }
+    // Export the model to a local file in PMML format
+    clusters.toPMML("/tmp/kmeans.xml")
+
+    // Export the model to a directory on a distributed file system in PMML format
+    clusters.toPMML(sc, "/tmp/kmeans")
+
+    // Export the model to the OutputStream in PMML format
+    clusters.toPMML(System.out)
     // $example off$
 
     sc.stop()

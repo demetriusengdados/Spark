@@ -16,45 +16,54 @@
  */
 
 // scalastyle:off println
-package org.apache.spark.examples.ml
+package org.apache.spark.examples.mllib
 
+import org.apache.spark.{SparkConf, SparkContext}
 // $example on$
-import org.apache.spark.ml.regression.IsotonicRegression
+import org.apache.spark.mllib.regression.{IsotonicRegression, IsotonicRegressionModel}
+import org.apache.spark.mllib.util.MLUtils
 // $example off$
-import org.apache.spark.sql.SparkSession
 
-/**
- * An example demonstrating Isotonic Regression.
- * Run with
- * {{{
- * bin/run-example ml.IsotonicRegressionExample
- * }}}
- */
 object IsotonicRegressionExample {
 
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession
-      .builder
-      .appName(s"${this.getClass.getSimpleName}")
-      .getOrCreate()
 
+    val conf = new SparkConf().setAppName("IsotonicRegressionExample")
+    val sc = new SparkContext(conf)
     // $example on$
-    // Loads data.
-    val dataset = spark.read.format("libsvm")
-      .load("data/mllib/sample_isotonic_regression_libsvm_data.txt")
+    val data = MLUtils.loadLibSVMFile(sc,
+      "data/mllib/sample_isotonic_regression_libsvm_data.txt").cache()
 
-    // Trains an isotonic regression model.
-    val ir = new IsotonicRegression()
-    val model = ir.fit(dataset)
+    // Create label, feature, weight tuples from input data with weight set to default value 1.0.
+    val parsedData = data.map { labeledPoint =>
+      (labeledPoint.label, labeledPoint.features(0), 1.0)
+    }
 
-    println(s"Boundaries in increasing order: ${model.boundaries}\n")
-    println(s"Predictions associated with the boundaries: ${model.predictions}\n")
+    // Split data into training (60%) and test (40%) sets.
+    val splits = parsedData.randomSplit(Array(0.6, 0.4), seed = 11L)
+    val training = splits(0)
+    val test = splits(1)
 
-    // Makes predictions.
-    model.transform(dataset).show()
+    // Create isotonic regression model from training data.
+    // Isotonic parameter defaults to true so it is only shown for demonstration
+    val model = new IsotonicRegression().setIsotonic(true).run(training)
+
+    // Create tuples of predicted and real labels.
+    val predictionAndLabel = test.map { point =>
+      val predictedLabel = model.predict(point._2)
+      (predictedLabel, point._1)
+    }
+
+    // Calculate mean squared error between predicted and real labels.
+    val meanSquaredError = predictionAndLabel.map { case (p, l) => math.pow((p - l), 2) }.mean()
+    println(s"Mean Squared Error = $meanSquaredError")
+
+    // Save and load model
+    model.save(sc, "target/tmp/myIsotonicRegressionModel")
+    val sameModel = IsotonicRegressionModel.load(sc, "target/tmp/myIsotonicRegressionModel")
     // $example off$
 
-    spark.stop()
+    sc.stop()
   }
 }
 // scalastyle:on println

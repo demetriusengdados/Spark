@@ -19,37 +19,42 @@
 package org.apache.spark.examples.mllib
 
 import org.apache.spark.{SparkConf, SparkContext}
-// $example on$
-import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
 import org.apache.spark.mllib.linalg.Vectors
-// $example off$
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
 
-object GaussianMixtureExample {
-
+/**
+ * Compute the singular value decomposition (SVD) of a tall-and-skinny matrix.
+ *
+ * The input matrix must be stored in row-oriented dense format, one line per row with its entries
+ * separated by space. For example,
+ * {{{
+ * 0.5 1.0
+ * 2.0 3.0
+ * 4.0 5.0
+ * }}}
+ * represents a 3-by-2 matrix, whose first row is (0.5, 1.0).
+ */
+object TallSkinnySVD {
   def main(args: Array[String]): Unit = {
+    if (args.length != 1) {
+      System.err.println("Usage: TallSkinnySVD <input>")
+      System.exit(1)
+    }
 
-    val conf = new SparkConf().setAppName("GaussianMixtureExample")
+    val conf = new SparkConf().setAppName("TallSkinnySVD")
     val sc = new SparkContext(conf)
 
-    // $example on$
-    // Load and parse the data
-    val data = sc.textFile("data/mllib/gmm_data.txt")
-    val parsedData = data.map(s => Vectors.dense(s.trim.split(' ').map(_.toDouble))).cache()
-
-    // Cluster the data into two classes using GaussianMixture
-    val gmm = new GaussianMixture().setK(2).run(parsedData)
-
-    // Save and load model
-    gmm.save(sc, "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-    val sameModel = GaussianMixtureModel.load(sc,
-      "target/org/apache/spark/GaussianMixtureExample/GaussianMixtureModel")
-
-    // output parameters of max-likelihood model
-    for (i <- 0 until gmm.k) {
-      println("weight=%f\nmu=%s\nsigma=\n%s\n" format
-        (gmm.weights(i), gmm.gaussians(i).mu, gmm.gaussians(i).sigma))
+    // Load and parse the data file.
+    val rows = sc.textFile(args(0)).map { line =>
+      val values = line.split(' ').map(_.toDouble)
+      Vectors.dense(values)
     }
-    // $example off$
+    val mat = new RowMatrix(rows)
+
+    // Compute SVD.
+    val svd = mat.computeSVD(mat.numCols().toInt)
+
+    println(s"Singular values are ${svd.s}")
 
     sc.stop()
   }
