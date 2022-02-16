@@ -16,8 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Tuple, Union
-from pyspark.mllib.linalg import Vector
-from numpy import ndarray  # noqa: F401
+from typing import Iterable
+from pyspark.rdd import RDD
+from numpy import ndarray  # type: ignore[import]
 
-VectorLike = Union[ndarray, Vector, List[float], Tuple[float, ...]]
+class KernelDensity:
+    def __init__(self) -> None: ...
+    def setBandwidth(self, bandwidth: float) -> None: ...
+    def setSample(self, sample: RDD[float]) -> None: ...
+    def estimate(self, points: Iterable[float]) -> ndarray: ...

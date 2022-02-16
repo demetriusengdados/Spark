@@ -16,8 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Tuple, Union
-from pyspark.mllib.linalg import Vector
-from numpy import ndarray  # noqa: F401
+from typing import Generic, Tuple, TypeVar
 
-VectorLike = Union[ndarray, Vector, List[float], Tuple[float, ...]]
+from pyspark.mllib.common import JavaModelWrapper
+
+DF = TypeVar("DF", int, float, Tuple[int, ...], Tuple[float, ...])
+
+class TestResult(JavaModelWrapper, Generic[DF]):
+    @property
+    def pValue(self) -> float: ...
+    @property
+    def degreesOfFreedom(self) -> DF: ...
+    @property
+    def statistic(self) -> float: ...
+    @property
+    def nullHypothesis(self) -> str: ...
+
+class ChiSqTestResult(TestResult[int]):
+    @property
+    def method(self) -> str: ...
+
+class KolmogorovSmirnovTestResult(TestResult[int]): ...

@@ -16,8 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Tuple, Union
-from pyspark.mllib.linalg import Vector
-from numpy import ndarray  # noqa: F401
+from typing import NamedTuple
 
-VectorLike = Union[ndarray, Vector, List[float], Tuple[float, ...]]
+from pyspark.mllib.linalg import Vector, Matrix
+
+class MultivariateGaussian(NamedTuple):
+    mu: Vector
+    sigma: Matrix

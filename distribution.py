@@ -15,19 +15,20 @@
 # limitations under the License.
 #
 
-"""
-RDD-based machine learning APIs for Python (in maintenance mode).
+from collections import namedtuple
 
-The `pyspark.mllib` package is in maintenance mode as of the Spark 2.0.0 release to encourage
-migration to the DataFrame-based APIs under the `pyspark.ml` package.
-"""
-# MLlib currently needs NumPy 1.4+, so complain if lower
+__all__ = ['MultivariateGaussian']
 
-import numpy
 
-ver = [int(x) for x in numpy.version.version.split('.')[:2]]
-if ver < [1, 4]:
-    raise RuntimeError("MLlib requires NumPy 1.4+")
+class MultivariateGaussian(namedtuple('MultivariateGaussian', ['mu', 'sigma'])):
 
-__all__ = ['classification', 'clustering', 'feature', 'fpm', 'linalg', 'random',
-           'recommendation', 'regression', 'stat', 'tree', 'util']
+    """Represents a (mu, sigma) tuple
+
+    Examples
+    --------
+    >>> m = MultivariateGaussian(Vectors.dense([11,12]),DenseMatrix(2, 2, (1.0, 3.0, 5.0, 2.0)))
+    >>> (m.mu, m.sigma.toArray())
+    (DenseVector([11.0, 12.0]), array([[ 1., 5.],[ 3., 2.]]))
+    >>> (m[0], m[1])
+    (DenseVector([11.0, 12.0]), array([[ 1., 5.],[ 3., 2.]]))
+    """

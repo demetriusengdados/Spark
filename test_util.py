@@ -14,67 +14,87 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import os
+import tempfile
 import unittest
 
-from py4j.protocol import Py4JJavaError
-
-from pyspark import keyword_only
-from pyspark.testing.utils import PySparkTestCase
-
-
-class KeywordOnlyTests(unittest.TestCase):
-    class Wrapped(object):
-        @keyword_only
-        def set(self, x=None, y=None):
-            if "x" in self._input_kwargs:
-                self._x = self._input_kwargs["x"]
-            if "y" in self._input_kwargs:
-                self._y = self._input_kwargs["y"]
-            return x, y
-
-    def test_keywords(self):
-        w = self.Wrapped()
-        x, y = w.set(y=1)
-        self.assertEqual(y, 1)
-        self.assertEqual(y, w._y)
-        self.assertIsNone(x)
-        self.assertFalse(hasattr(w, "_x"))
-
-    def test_non_keywords(self):
-        w = self.Wrapped()
-        self.assertRaises(TypeError, lambda: w.set(0, y=1))
-
-    def test_kwarg_ownership(self):
-        # test _input_kwargs is owned by each class instance and not a shared static variable
-        class Setter(object):
-            @keyword_only
-            def set(self, x=None, other=None, other_x=None):
-                if "other" in self._input_kwargs:
-                    self._input_kwargs["other"].set(x=self._input_kwargs["other_x"])
-                self._x = self._input_kwargs["x"]
-
-        a = Setter()
-        b = Setter()
-        a.set(x=1, other=b, other_x=2)
-        self.assertEqual(a._x, 1)
-        self.assertEqual(b._x, 2)
+from pyspark.mllib.common import _to_java_object_rdd  # type: ignore[attr-defined]
+from pyspark.mllib.util import LinearDataGenerator
+from pyspark.mllib.util import MLUtils
+from pyspark.mllib.linalg import SparseVector, DenseVector, Vectors
+from pyspark.mllib.random import RandomRDDs
+from pyspark.testing.mllibutils import MLlibTestCase
 
 
-class UtilTests(PySparkTestCase):
-    def test_py4j_str(self):
-        with self.assertRaises(Py4JJavaError) as context:
-            # This attempts java.lang.String(null) which throws an NPE.
-            self.sc._jvm.java.lang.String(None)
+class MLUtilsTests(MLlibTestCase):
+    def test_append_bias(self):
+        data = [2.0, 2.0, 2.0]
+        ret = MLUtils.appendBias(data)
+        self.assertEqual(ret[3], 1.0)
+        self.assertEqual(type(ret), DenseVector)
 
-        self.assertTrue('NullPointerException' in str(context.exception))
+    def test_append_bias_with_vector(self):
+        data = Vectors.dense([2.0, 2.0, 2.0])
+        ret = MLUtils.appendBias(data)
+        self.assertEqual(ret[3], 1.0)
+        self.assertEqual(type(ret), DenseVector)
 
-    def test_parsing_version_string(self):
-        from pyspark.util import VersionUtils
-        self.assertRaises(ValueError, lambda: VersionUtils.majorMinorVersion("abced"))
+    def test_append_bias_with_sp_vector(self):
+        data = Vectors.sparse(3, {0: 2.0, 2: 2.0})
+        expected = Vectors.sparse(4, {0: 2.0, 2: 2.0, 3: 1.0})
+        # Returned value must be SparseVector
+        ret = MLUtils.appendBias(data)
+        self.assertEqual(ret, expected)
+        self.assertEqual(type(ret), SparseVector)
+
+    def test_load_vectors(self):
+        import shutil
+        data = [
+            [1.0, 2.0, 3.0],
+            [1.0, 2.0, 3.0]
+        ]
+        temp_dir = tempfile.mkdtemp()
+        load_vectors_path = os.path.join(temp_dir, "test_load_vectors")
+        try:
+            self.sc.parallelize(data).saveAsTextFile(load_vectors_path)
+            ret_rdd = MLUtils.loadVectors(self.sc, load_vectors_path)
+            ret = ret_rdd.collect()
+            self.assertEqual(len(ret), 2)
+            self.assertEqual(ret[0], DenseVector([1.0, 2.0, 3.0]))
+            self.assertEqual(ret[1], DenseVector([1.0, 2.0, 3.0]))
+        except:
+            self.fail()
+        finally:
+            shutil.rmtree(load_vectors_path)
+
+
+class LinearDataGeneratorTests(MLlibTestCase):
+    def test_dim(self):
+        linear_data = LinearDataGenerator.generateLinearInput(
+            intercept=0.0, weights=[0.0, 0.0, 0.0],
+            xMean=[0.0, 0.0, 0.0], xVariance=[0.33, 0.33, 0.33],
+            nPoints=4, seed=0, eps=0.1)
+        self.assertEqual(len(linear_data), 4)
+        for point in linear_data:
+            self.assertEqual(len(point.features), 3)
+
+        linear_data = LinearDataGenerator.generateLinearRDD(
+            sc=self.sc, nexamples=6, nfeatures=2, eps=0.1,
+            nParts=2, intercept=0.0).collect()
+        self.assertEqual(len(linear_data), 6)
+        for point in linear_data:
+            self.assertEqual(len(point.features), 2)
+
+
+class SerDeTest(MLlibTestCase):
+    def test_to_java_object_rdd(self):  # SPARK-6660
+        data = RandomRDDs.uniformRDD(self.sc, 10, 5, seed=0)
+        self.assertEqual(_to_java_object_rdd(data).count(), 10)
 
 
 if __name__ == "__main__":
-    from pyspark.tests.test_util import *  # noqa: F401
+    from pyspark.mllib.tests.test_util import *  # noqa: F401
 
     try:
         import xmlrunner  # type: ignore[import]

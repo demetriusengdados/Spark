@@ -16,8 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Tuple, Union
-from pyspark.mllib.linalg import Vector
-from numpy import ndarray  # noqa: F401
+from typing import Any, TypeVar
 
-VectorLike = Union[ndarray, Vector, List[float], Tuple[float, ...]]
+import pyspark.context
+
+from py4j.java_gateway import JavaObject
+
+C = TypeVar("C", bound=type)
+
+def callJavaFunc(sc: pyspark.context.SparkContext, func: Any, *args: Any) -> Any: ...
+def callMLlibFunc(name: str, *args: Any) -> Any: ...
+
+class JavaModelWrapper:
+    def __init__(self, java_model: JavaObject) -> None: ...
+    def __del__(self) -> None: ...
+    def call(self, name: str, *a: Any) -> Any: ...
+
+def inherit_doc(cls: C) -> C: ...
